@@ -1,0 +1,20 @@
+# Julia-generated files
+/Manifest.toml
+/coverage/
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+
+# Generated documentation
+/docs/build/
+
+# Local development state
+/.julia-depot/
+/.vscode/
+/.claude/
+/idea.txt
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
