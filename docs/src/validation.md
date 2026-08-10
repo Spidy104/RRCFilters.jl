@@ -18,8 +18,18 @@ julia --project=dev --startup-file=no dev/smoke.jl
 ```
 
 This exercises QAM/PSK links, pulse shaping, carrier and timing acquisition,
-AGC, convolutional coding, hard and unquantized Viterbi, CRC, and all equalizer
-algorithms with deterministic seeds and quality assertions.
+AGC, convolutional coding, hard, unquantized, and LLR Viterbi, CRC, and all
+equalizer algorithms with deterministic seeds and quality assertions.
+
+The full reproducible hard-versus-soft BER sweep is separate so the short smoke
+gate stays fast:
+
+```powershell
+julia --project=dev --startup-file=no dev/softcoded_link.jl
+```
+
+It requires stable frame acquisition, monotonically nonincreasing seeded soft
+BER, and aggregate soft-decoding improvement across 4 through 9 dB.
 
 ## Documentation
 

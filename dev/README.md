@@ -11,6 +11,7 @@ Run each verification path directly in its workspace:
 ```powershell
 julia --project=. --startup-file=no -e "using Pkg; Pkg.test()"
 julia --project=dev --startup-file=no dev/smoke.jl
+julia --project=dev --startup-file=no dev/softcoded_link.jl
 julia --project=dev --startup-file=no dev/benchmark.jl
 julia --project=docs --startup-file=no docs/make.jl
 ```
@@ -22,6 +23,11 @@ complete warmed performance harness; it reports minimum time, timing noise,
 allocated bytes, and allocation count while excluding compilation and RNG
 construction from each timed call. `docs/make.jl` executes documentation
 examples, checks exported API coverage, and renders the manual.
+
+`dev/softcoded_link.jl` is the receiver-quality gate. It prints reproducible
+CSV-formatted BER points for a pulse-shaped, timing- and carrier-impaired,
+soft-decoded QPSK frame and fails if acquisition or coding-gain invariants do
+not hold.
 
 Always finish a change with at least the smoke command. Use the full test suite
 for source changes and the complete benchmark harness for performance-sensitive

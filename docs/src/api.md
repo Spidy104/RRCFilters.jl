@@ -12,8 +12,10 @@ upfirdn
 ```@docs
 qammod
 qamdemod
+qamsoftdemod
 pskmod
 pskdemod
+psksoftdemod
 ```
 
 ## Noise, impairments, and metrics

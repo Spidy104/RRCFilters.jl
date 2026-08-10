@@ -9,7 +9,19 @@ bounds-elided indexing are validated before entering optimized loops.
 
 Concrete floating-point precision is preserved where supported. Integer and
 rational signal inputs generally promote to `Float64`. Modulators return
-`ComplexF64`; bit-producing functions return `BitVector`.
+`ComplexF64`; bit-producing functions return `BitVector`; soft demodulators
+return `Vector{Float64}`.
+
+Soft QAM and PSK demodulation uses the max-log approximation. For each bit it
+finds the nearest constellation member in the zero and one partitions and
+returns `(minimum_one_distance - minimum_zero_distance) / noise_variance`.
+Positive LLRs favor zero. Ordinary inputs use a common-energy-free distance
+score; extreme finite inputs fall back to high-precision arithmetic and clamp
+only values that cannot be represented by `Float64`.
+
+Square QAM separates into independent in-phase and quadrature searches, reducing
+each symbol from a full constellation scan to two axis scans. Cross-QAM and PSK
+retain the general partition search.
 
 ## Stateless vector model
 
@@ -20,7 +32,8 @@ in-place public APIs.
 
 ## Receiver limitations
 
-- Modulation demodulators are hard-decision only.
+- Soft demodulation is max-log rather than full log-MAP and is limited to
+  constellation orders through 4096.
 - Carrier loops require acquisition time and retain constellation phase
   ambiguity.
 - `symbolsync` returns a variable number of symbols.

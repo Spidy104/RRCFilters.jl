@@ -9,13 +9,14 @@ and receive matched filtering.
 
 ## Modulation
 
-`qammod` and `qamdemod` support Gray or binary mapping for orders 4, 8, 16, 32,
-64, 128, 256, and 512. This includes square, rectangular, and corner-cut cross
-constellations.
+`qammod`, `qamdemod`, and `qamsoftdemod` support Gray or binary mapping for
+square, rectangular, and corner-cut cross constellations. The soft demodulator
+returns max-log bit LLRs.
 
-`pskmod` and `pskdemod` support power-of-two PSK orders, Gray or binary labels,
-and an arbitrary finite phase offset. Demodulation is hard-decision; soft QAM
-or PSK likelihoods are not part of the current API.
+`pskmod`, `pskdemod`, and `psksoftdemod` support power-of-two PSK orders, Gray
+or binary labels, and an arbitrary finite phase offset. Soft-demodulation
+orders are capped at 4096 because exact max-log partition searches scale with
+constellation size.
 
 ## Channel impairments
 
@@ -38,8 +39,9 @@ decision-feedback configurations.
 ## Coding and integrity
 
 `poly2trellis` builds rate-`1/n`, single-input, non-recursive convolutional
-trellises. `convenc` encodes and `vitdec` performs hard, quantized-soft, or
-unquantized full-block Viterbi decoding in truncated or terminated mode.
+trellises. `convenc` encodes and `vitdec` performs hard, quantized-soft,
+unquantized-sample, or LLR full-block Viterbi decoding in truncated or
+terminated mode.
 
 `crcconfig`, `crcgenerate`, and `crcdetect` support CRC degrees through 64,
 direct or indirect operation, initial/final masks, byte reflection, checksum

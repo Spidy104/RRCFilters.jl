@@ -22,6 +22,12 @@ effects. Use a waveform link when timing recovery or occupied bandwidth matters.
 If timing is unknown, keep the receive matched-filter output oversampled and
 send it to `symbolsync` instead of immediately decimating it.
 
+The executable `dev/softcoded_link.jl` example goes further: it pulse-shapes a
+terminated rate-1/2 QPSK frame, adds timing, carrier, phase, and AWGN
+impairments, performs timing and carrier recovery, acquires a known sync word,
+resolves residual complex gain, produces max-log LLRs, and Viterbi decodes the
+payload. Its seeded sweep prints CSV-formatted hard and soft BER data.
+
 ## Avoiding misleading results
 
 - Do not compare demodulated bits before removing group delay.

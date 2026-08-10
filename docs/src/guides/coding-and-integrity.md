@@ -19,9 +19,21 @@ Viterbi decision modes:
 - `:soft`: integers from zero through `2^num_soft_bits - 1`
 - `:unquant`: finite real matched-filter samples, with positive meaning zero
   and negative meaning one
+- `:llr`: finite real log-likelihood ratios, with positive meaning zero and
+  negative meaning one
 
 Unquantized samples generally retain more information than thresholded hard
-bits. Terminated mode assumes the caller drove the encoder to state zero.
+bits. LLRs from `qamsoftdemod` and `psksoftdemod` retain reliability across
+higher-order constellations and connect directly to `decision_type=:llr`.
+Terminated mode assumes the caller drove the encoder to state zero.
+
+```julia
+symbols = pskmod(encoded, 4; phase_offset=pi / 4)
+received = awgn(rng, symbols, snr_db; signal_power=1.0)
+llrs = psksoftdemod(received, 4; phase_offset=pi / 4,
+                    noise_variance=10.0^(-snr_db / 10))
+decoded = vitdec(llrs, trellis, 30; mode=:term, decision_type=:llr)
+```
 
 ## CRC placement
 

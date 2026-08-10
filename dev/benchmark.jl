@@ -60,6 +60,14 @@ function report_qamdemod_benchmark(label, symbols, M; gray=true)
     println("$(label): $(round(best.time / 1_000; digits=2)) us (min; noise ratio $(round(noise_ratio; digits=2))x), $(best.memory) bytes, $(best.allocs) allocations")
 end
 
+function report_qamsoftdemod_benchmark(label, symbols, M, noise_variance; gray=true)
+    qamsoftdemod(symbols, M; gray, noise_variance)
+    trial = @benchmark qamsoftdemod($symbols, $M; gray=$gray, noise_variance=$noise_variance) samples=20 evals=1
+    best = minimum(trial)
+    noise_ratio = maximum(trial).time / best.time
+    println("$(label): $(round(best.time / 1_000; digits=2)) us (min; noise ratio $(round(noise_ratio; digits=2))x), $(best.memory) bytes, $(best.allocs) allocations")
+end
+
 function qam_awgn_link(rng, bits, M, snr_db; gray=true)
     symbols = qammod(bits, M; gray)
     noisy = awgn(rng, symbols, snr_db)
@@ -86,6 +94,14 @@ end
 function report_pskdemod_benchmark(label, symbols, M; gray=true)
     pskdemod(symbols, M; gray) # Compile before timing.
     trial = @benchmark pskdemod($symbols, $M; gray=$gray) samples=100 evals=1
+    best = minimum(trial)
+    noise_ratio = maximum(trial).time / best.time
+    println("$(label): $(round(best.time / 1_000; digits=2)) us (min; noise ratio $(round(noise_ratio; digits=2))x), $(best.memory) bytes, $(best.allocs) allocations")
+end
+
+function report_psksoftdemod_benchmark(label, symbols, M, noise_variance; gray=true)
+    psksoftdemod(symbols, M; gray, noise_variance)
+    trial = @benchmark psksoftdemod($symbols, $M; gray=$gray, noise_variance=$noise_variance) samples=20 evals=1
     best = minimum(trial)
     noise_ratio = maximum(trial).time / best.time
     println("$(label): $(round(best.time / 1_000; digits=2)) us (min; noise ratio $(round(noise_ratio; digits=2))x), $(best.memory) bytes, $(best.allocs) allocations")
@@ -319,6 +335,10 @@ report_qammod_benchmark("64-QAM modulation, 1,000,000 symbols", qam64_bits, 64)
 report_qamdemod_benchmark("64-QAM hard demodulation, 1,000,000 symbols", qam64_symbols, 64)
 report_qammod_benchmark("256-QAM modulation, 1,000,000 symbols", qam256_bits, 256)
 report_qamdemod_benchmark("256-QAM hard demodulation, 1,000,000 symbols", qam256_symbols, 256)
+report_qamsoftdemod_benchmark("16-QAM max-log soft demodulation, 100,000 symbols",
+                              qam16_symbols[1:100_000], 16, 0.1)
+report_qamsoftdemod_benchmark("64-QAM max-log soft demodulation, 100,000 symbols",
+                              qam64_symbols[1:100_000], 64, 0.1)
 
 qam32_bits = bitrand(Xoshiro(32), 5 * 1_000_000)
 qam128_bits = bitrand(Xoshiro(128), 7 * 1_000_000)
@@ -349,6 +369,10 @@ report_pskmod_benchmark("8-PSK modulation, 1,000,000 symbols", psk8_bits, 8)
 report_pskdemod_benchmark("8-PSK hard demodulation, 1,000,000 symbols", psk8_symbols, 8)
 report_pskmod_benchmark("16-PSK modulation, 1,000,000 symbols", psk16_bits, 16)
 report_pskdemod_benchmark("16-PSK hard demodulation, 1,000,000 symbols", psk16_symbols, 16)
+report_psksoftdemod_benchmark("QPSK max-log soft demodulation, 100,000 symbols",
+                              psk4_symbols[1:100_000], 4, 0.1)
+report_psksoftdemod_benchmark("8-PSK max-log soft demodulation, 100,000 symbols",
+                              psk8_symbols[1:100_000], 8, 0.1)
 
 large_psk_link_bits = bitrand(Xoshiro(1600), 4 * 100_000)
 report_psk_awgn_link_benchmark("16-PSK/AWGN/16-PSK link, 100,000 symbols, 35 dB", large_psk_link_bits, 16, 35.0)
@@ -453,10 +477,13 @@ report_vitdec_benchmark("vitdec K=9 (256 states), 100,000 symbols, :trunc", fec_
 
 fec_k7_soft_code = Int.(fec_k7_code)
 fec_k7_unquant_code = Float64[b ? -1.0 : 1.0 for b in fec_k7_code]
+fec_k7_llrs = 4 .* fec_k7_unquant_code
 report_vitdec_benchmark("vitdec K=7 (64 states), 1,000,000 symbols, :trunc, decision_type=:soft", fec_k7_soft_code,
                          fec_k7_trellis, 20; mode=:trunc, decision_type=:soft, num_soft_bits=3, samples=10)
 report_vitdec_benchmark("vitdec K=7 (64 states), 1,000,000 symbols, :trunc, decision_type=:unquant",
                          fec_k7_unquant_code, fec_k7_trellis, 20; mode=:trunc, decision_type=:unquant, samples=10)
+report_vitdec_benchmark("vitdec K=7 (64 states), 1,000,000 symbols, :trunc, decision_type=:llr",
+                         fec_k7_llrs, fec_k7_trellis, 20; mode=:trunc, decision_type=:llr, samples=10)
 
 fec_link_bits = bitrand(Xoshiro(1102), 10_000)
 report_fec_link_benchmark("FEC K=7 encode/BPSK/AWGN/demod/vitdec link, 10,000 bits, 2 dB", fec_link_bits, fec_k7_trellis, 2.0; samples=10)

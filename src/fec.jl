@@ -58,7 +58,9 @@ of exactly `0`/`1`. `:soft` expects `code` entries as integers in
 `[0, 2^num_soft_bits - 1]`, where `0` is the most confident `0` and
 `2^num_soft_bits - 1` is the most confident `1`. `:unquant` expects `code`
 entries as arbitrary finite reals (e.g. raw matched-filter samples), where
-`+1` represents logical `0` and `-1` logical `1`. Per-bit-position branch
+`+1` represents logical `0` and `-1` logical `1`. `:llr` accepts arbitrary
+finite log-likelihood ratios, with positive values favoring logical `0` and
+negative values favoring logical `1`. Per-bit-position branch
 metrics are computed once per received symbol into a
 `trellis.num_output_symbols`-length table, then looked up during the
 add-compare-select step -- for a candidate output symbol `s` and
@@ -67,7 +69,11 @@ bit-position `j` (`1`-indexed, matching this library's own MSB-first
 a symbol corresponds to bit `n-j` of `s`, counting from the LSB), a
 candidate bit of `1` contributes `2^num_soft_bits - 1 - code[j]` (`:soft`)
 or `(code[j]+1)^2` (`:unquant`); a candidate bit of `0` contributes
-`code[j]` (`:soft`) or `(code[j]-1)^2` (`:unquant`). `:hard`'s metric
+`code[j]` (`:soft`) or `(code[j]-1)^2` (`:unquant`). For `:llr`, a candidate
+bit of `1` contributes `max(llr, 0)` and a candidate bit of `0` contributes
+`max(-llr, 0)` after one block-global positive rescaling, which preserves all
+path decisions while preventing finite extreme metrics from overflowing.
+`:hard`'s metric
 (`count_ones(xor(s, received_symbol))`, a whole-symbol Hamming distance)
 is mathematically the same per-bit sum specialized to `0`/`1` inputs.
 `num_soft_bits=1` with `decision_type=:soft` is therefore exactly
@@ -213,8 +219,8 @@ function _validate_vitdec_arguments(traceback_depth::Integer, mode::Symbol, deci
     (traceback_depth >= 1 && traceback_depth <= symbol_count) ||
         throw(ArgumentError("traceback_depth must be in [1, length(code) ÷ trellis.n]"))
 
-    decision_type in (:hard, :soft, :unquant) ||
-        throw(ArgumentError("decision_type must be :hard, :soft, or :unquant"))
+    decision_type in (:hard, :soft, :unquant, :llr) ||
+        throw(ArgumentError("decision_type must be :hard, :soft, :unquant, or :llr"))
 
     num_soft_bits isa Bool && throw(ArgumentError("num_soft_bits must be an integer, not Bool"))
     (1 <= num_soft_bits <= _FEC_MAX_SOFT_BITS) ||
@@ -234,17 +240,23 @@ function _validate_vitdec_code(code::AbstractVector{<:Real}, decision_type::Symb
             (isfinite(value) && value == floor(value) && value >= 0 && value <= limit) ||
                 throw(ArgumentError("code must contain integers in [0, 2^num_soft_bits - 1] for decision_type=:soft"))
         end
-    else
+    elseif decision_type === :unquant
         for value in code
             (isfinite(value) && isfinite(Float64(value))) ||
                 throw(ArgumentError("code must be finite and representable as Float64 for decision_type=:unquant"))
+        end
+    else
+        for value in code
+            (isfinite(value) && isfinite(Float64(value))) ||
+                throw(ArgumentError("code must be finite and representable as Float64 for decision_type=:llr"))
         end
     end
     return nothing
 end
 
 function _vitdec_branch_metric_table!(table::Vector{Float64}, code::AbstractVector{<:Real}, start::Int, n::Int,
-                                       num_output_symbols::Int, decision_type::Symbol, num_soft_bits::Int)
+                                       num_output_symbols::Int, decision_type::Symbol, num_soft_bits::Int,
+                                       llr_scale::Float64)
     if decision_type === :hard
         received = 0
         for j in 1:n
@@ -264,7 +276,7 @@ function _vitdec_branch_metric_table!(table::Vector{Float64}, code::AbstractVect
             end
             table[s + 1] = acc
         end
-    else
+    elseif decision_type === :unquant
         max_abs = 0.0
         for j in 1:n
             max_abs = max(max_abs, abs(Float64(code[start + j - 1])))
@@ -291,6 +303,16 @@ function _vitdec_branch_metric_table!(table::Vector{Float64}, code::AbstractVect
                 table[s + 1] = acc
             end
         end
+    else
+        @inbounds for s in 0:(num_output_symbols - 1)
+            acc = 0.0
+            for j in 1:n
+                bit = (s >> (n - j)) & 1
+                llr = Float64(code[start + j - 1]) / llr_scale
+                acc += bit == 1 ? max(llr, 0.0) : max(-llr, 0.0)
+            end
+            table[s + 1] = acc
+        end
     end
     return table
 end
@@ -312,11 +334,12 @@ function _vitdec_kernel!(decoded::BitVector, code::AbstractVector{<:Real}, trell
     predecessor_state = Matrix{Int32}(undef, num_states, symbol_count)
     predecessor_input = falses(num_states, symbol_count)
     branch_metric_table = Vector{Float64}(undef, num_output_symbols)
+    llr_scale = decision_type === :llr ? max(1.0, maximum(abs ∘ Float64, code)) : 1.0
 
     for step in 1:symbol_count
         start = input_start + (step - 1) * n
         _vitdec_branch_metric_table!(branch_metric_table, code, start, n, num_output_symbols, decision_type,
-                                      num_soft_bits)
+                                      num_soft_bits, llr_scale)
         fill!(new_metric, sentinel)
         @inbounds for state in 0:(num_states - 1)
             current = metric[state + 1]

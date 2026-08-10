@@ -308,4 +308,12 @@ end
 smoke_crc_link(7, [0o171, 0o133], 2_000, 4.0, 1201)
 smoke_crc_link(7, [0o171, 0o133], 2_000, -1.0, 1202)
 
+include(joinpath(@__DIR__, "softcoded_link.jl"))
+softcoded_result = softcoded_link_trial(5.0; message_length=5_000, seed=4100)
+@assert softcoded_result.synchronization_score > 0.65
+@assert softcoded_result.soft_errors < softcoded_result.hard_errors
+@assert softcoded_result.soft_ber <= 0.005
+println("Synchronized pulse-shaped QPSK K=7 link at 5 dB: hard BER=$(softcoded_result.hard_ber), " *
+        "soft BER=$(softcoded_result.soft_ber), sync score=$(round(softcoded_result.synchronization_score; digits=4))")
+
 println("RRCFilters smoke checks passed")

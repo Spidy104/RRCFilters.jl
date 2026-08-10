@@ -4,6 +4,11 @@ All notable changes to RRCFilters are documented here.
 
 ## Unreleased
 
+- Added max-log `qamsoftdemod` and `psksoftdemod` bit LLRs with finite-extreme
+  hardening and bounded constellation-order work.
+- Added `decision_type=:llr` Viterbi decoding with block-global metric scaling.
+- Added a synchronized, pulse-shaped, soft-decoded QPSK receiver and seeded
+  hard-versus-soft BER sweep with acquisition and quality gates.
 - Added a complete Documenter manual with capability guides, practical links,
   limitations, performance methodology, validation guidance, and grouped API
   reference.

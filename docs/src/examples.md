@@ -43,6 +43,37 @@ decoded = vitdec(code, trellis, 30; mode=:term)
 Termination is explicit: append the zero tail before encoding and remove it
 from the decoded message if the application does not want it.
 
+## Soft-decoded QPSK
+
+```@example soft_fec_example
+using RRCFilters
+using Random
+
+trellis = poly2trellis(7, [0o171, 0o133])
+message = bitrand(Xoshiro(91), 5_000)
+terminated = vcat(message, falses(trellis.constraint_length - 1))
+code, _ = convenc(terminated, trellis)
+symbols = pskmod(code, 4; phase_offset=pi / 4)
+
+snr_db = 2.0
+received = awgn(Xoshiro(92), symbols, snr_db; signal_power=1.0)
+hard_code = pskdemod(received, 4; phase_offset=pi / 4)
+hard = vitdec(hard_code, trellis, 30; mode=:term)
+
+llrs = psksoftdemod(received, 4; phase_offset=pi / 4,
+                    noise_variance=10.0^(-snr_db / 10))
+soft = vitdec(llrs, trellis, 30; mode=:term, decision_type=:llr)
+
+hard_errors, hard_ber = biterr(message, hard[1:length(message)])
+soft_errors, soft_ber = biterr(message, soft[1:length(message)])
+(hard_errors=hard_errors, hard_ber=hard_ber,
+ soft_errors=soft_errors, soft_ber=soft_ber)
+```
+
+`noise_variance` is the complex noise power at the demodulator input. The
+soft result preserves bit reliability instead of discarding it at a decision
+boundary.
+
 ## CRC-protected payload
 
 ```@example crc_example

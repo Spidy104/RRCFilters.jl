@@ -10,7 +10,7 @@ and adaptive equalization without nonstandard runtime dependencies.
 | Area | Functions |
 |---|---|
 | Pulse shaping and multirate FIR | `rcosdesign`, `upfirdn` |
-| QAM and PSK | `qammod`, `qamdemod`, `pskmod`, `pskdemod` |
+| QAM and PSK | `qammod`, `qamdemod`, `qamsoftdemod`, `pskmod`, `pskdemod`, `psksoftdemod` |
 | Noise and impairments | `awgn`, `freqoffset`, `timingoffset` |
 | Receiver recovery | `agc`, `carriersync`, `symbolsync`, `equalize` |
 | Coding and integrity | `poly2trellis`, `convenc`, `vitdec`, `crcconfig`, `crcgenerate`, `crcdetect` |

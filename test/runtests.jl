@@ -687,6 +687,88 @@ const RC_REFERENCE = [
         @test isempty(Test.detect_ambiguities(RRCFilters))
     end
 
+    @testset "soft demodulation" begin
+        function all_label_bits(M)
+            bits_per_symbol = trailing_zeros(M)
+            bits = falses(M * bits_per_symbol)
+            for label in 0:(M - 1)
+                RRCFilters._integer_to_bits!(bits, label * bits_per_symbol + 1,
+                                             bits_per_symbol, label)
+            end
+            return bits
+        end
+
+        for M in (4, 8, 16, 32, 64, 128, 256, 512), gray in (true, false)
+            bits = all_label_bits(M)
+            symbols = qammod(bits, M; gray)
+            llrs = qamsoftdemod(symbols, M; gray, noise_variance=0.5)
+            @test length(llrs) == length(bits)
+            @test all(isfinite, llrs)
+            @test BitVector(llrs .< 0) == bits
+            @test qamsoftdemod(symbols, M; gray, noise_variance=1.0) ≈ llrs ./ 2
+        end
+
+        for M in (2, 4, 8, 16, 32), gray in (true, false)
+            bits = all_label_bits(M)
+            symbols = pskmod(bits, M; gray, phase_offset=0.37)
+            llrs = psksoftdemod(symbols, M; gray, phase_offset=0.37,
+                               noise_variance=0.25)
+            @test length(llrs) == length(bits)
+            @test all(isfinite, llrs)
+            @test BitVector(llrs .< 0) == bits
+            @test psksoftdemod(symbols, M; gray, phase_offset=0.37,
+                               noise_variance=0.5) ≈ llrs ./ 2
+        end
+
+        let rng = Xoshiro(2110)
+            for M in (4, 16, 64, 8, 32, 128)
+                bits = bitrand(rng, 400 * trailing_zeros(M))
+                noisy = awgn(rng, qammod(bits, M), 14.0)
+                llrs = qamsoftdemod(noisy, M; noise_variance=10.0^(-1.4))
+                @test BitVector(llrs .< 0) == qamdemod(noisy, M)
+                if M in (4, 16, 64)
+                    labels = all_label_bits(M)
+                    reference = RRCFilters._maxlog_llrs(noisy, qammod(labels, M),
+                                                         trailing_zeros(M), 10.0^(-1.4))
+                    @test llrs ≈ reference rtol=32eps(Float64)
+                end
+            end
+            for M in (2, 4, 8, 16)
+                bits = bitrand(rng, 400 * trailing_zeros(M))
+                noisy = awgn(rng, pskmod(bits, M), 14.0)
+                llrs = psksoftdemod(noisy, M; noise_variance=10.0^(-1.4))
+                @test BitVector(llrs .< 0) == pskdemod(noisy, M)
+            end
+        end
+
+        extreme_square_qam = ComplexF64[complex(floatmax(Float64), -floatmax(Float64))]
+        extreme_qam = ComplexF64[complex(floatmax(Float64), floatmax(Float64))]
+        extreme_psk = ComplexF64[complex(floatmax(Float64), -floatmax(Float64))]
+        square_qam_llrs = qamsoftdemod(extreme_square_qam, 16; gray=false)
+        qam_llrs = qamsoftdemod(extreme_qam, 32; gray=false)
+        psk_llrs = psksoftdemod(extreme_psk, 8; gray=false)
+        @test all(isfinite, square_qam_llrs)
+        @test all(isfinite, qam_llrs)
+        @test all(isfinite, psk_llrs)
+        @test BitVector(square_qam_llrs .< 0) == qamdemod(extreme_square_qam, 16; gray=false)
+        @test BitVector(qam_llrs .< 0) == qamdemod(extreme_qam, 32; gray=false)
+        @test BitVector(psk_llrs .< 0) == pskdemod(extreme_psk, 8; gray=false)
+
+        zero_based_symbols = ZeroBasedVector(ComplexF64[1 + im, -1 - im])
+        @test qamsoftdemod(zero_based_symbols, 4) == qamsoftdemod(zero_based_symbols.data, 4)
+        @test isempty(qamsoftdemod(ComplexF64[], 4))
+        @test isempty(psksoftdemod(ComplexF64[], 1 << 20))
+        @test_throws ArgumentError qamsoftdemod(ComplexF64[1 + im], 16; noise_variance=0.0)
+        @test_throws ArgumentError qamsoftdemod(ComplexF64[1 + im], 16; noise_variance=-1.0)
+        @test_throws ArgumentError qamsoftdemod(ComplexF64[1 + im], 16; noise_variance=true)
+        @test_throws ArgumentError qamsoftdemod(ComplexF64[NaN + 0im], 16)
+        @test_throws ArgumentError psksoftdemod(ComplexF64[1 + im], 8; phase_offset=NaN)
+        @test_throws ArgumentError psksoftdemod(ComplexF64[1 + im], 1 << 13)
+        @test @inferred(qamsoftdemod(ComplexF64[1 + im], 4)) isa Vector{Float64}
+        @test @inferred(psksoftdemod(ComplexF64[1 + im], 4)) isa Vector{Float64}
+        @test isempty(Test.detect_ambiguities(RRCFilters))
+    end
+
     @testset "upfirdn" begin
         @testset "input validation" begin
             @test_throws ArgumentError upfirdn([1.0], [1.0], true, 1)
@@ -1533,6 +1615,10 @@ const RC_REFERENCE = [
             @test_throws ArgumentError vitdec([0.0, 1.0, Inf, -1.0], t, 1; decision_type=:unquant)
             @test_throws ArgumentError vitdec(BigFloat[big"1e400", 1, -1, 1], t, 1; decision_type=:unquant)
             @test (vitdec([1.0, -1.0, 0.3, -0.8], t, 1; decision_type=:unquant); true)
+            @test_throws ArgumentError vitdec([1.0, -1.0, NaN, -0.8], t, 1; decision_type=:llr)
+            @test_throws ArgumentError vitdec([1.0, -1.0, Inf, -0.8], t, 1; decision_type=:llr)
+            @test_throws ArgumentError vitdec(BigFloat[big"1e400", 1, -1, 1], t, 1; decision_type=:llr)
+            @test (vitdec([1.0, -1.0, 0.3, -0.8], t, 1; decision_type=:llr); true)
             @test_throws ArgumentError vitdec([0, 1, 0, 1], t, 1; decision_type=:soft, num_soft_bits=53)
 
             invalid_states = copy(t.next_states)
@@ -1596,6 +1682,30 @@ const RC_REFERENCE = [
             code, _ = convenc(message, trellis)
             samples = Float64[bit ? -floatmax(Float64) : floatmax(Float64) for bit in code]
             @test vitdec(samples, trellis, 1; decision_type=:unquant) == message
+        end
+
+        @testset "LLR decoding integrates with soft demodulation" begin
+            trellis = poly2trellis(7, [0o171, 0o133])
+            message = bitrand(Xoshiro(3051), 10_000)
+            terminated = vcat(message, falses(trellis.constraint_length - 1))
+            code, _ = convenc(terminated, trellis)
+            symbols = pskmod(code, 4; phase_offset=pi / 4)
+            noise_variance = 10.0^(-4.5 / 10)
+            noisy = awgn(Xoshiro(3052), symbols, 4.5; signal_power=1.0)
+
+            hard_code = pskdemod(noisy, 4; phase_offset=pi / 4)
+            hard_decoded = vitdec(hard_code, trellis, 30; mode=:term)
+            hard_errors, _ = biterr(message, hard_decoded[1:length(message)])
+
+            llrs = psksoftdemod(noisy, 4; phase_offset=pi / 4,
+                                noise_variance)
+            soft_decoded = vitdec(llrs, trellis, 30; mode=:term,
+                                  decision_type=:llr)
+            soft_errors, _ = biterr(message, soft_decoded[1:length(message)])
+
+            @test soft_errors < hard_errors
+            @test vitdec(llrs .* 1.0e200, trellis, 30; mode=:term,
+                         decision_type=:llr) == soft_decoded
         end
 
         @testset "round trips" begin
@@ -2229,5 +2339,14 @@ const RC_REFERENCE = [
             slope = (phase_estimate[tail[end]] - phase_estimate[tail[1]]) / (tail[end] - tail[1])
             @test isapprox(slope, freq_offset; atol=0.01)
         end
+    end
+
+    @testset "synchronized soft-coded waveform link" begin
+        include(joinpath(@__DIR__, "..", "dev", "softcoded_link.jl"))
+        result = softcoded_link_trial(5.0; message_length=5_000, seed=4100)
+        @test result.synchronization_score > 0.65
+        @test result.hard_errors > 0
+        @test result.soft_errors < result.hard_errors
+        @test result.soft_ber <= 0.005
     end
 end
