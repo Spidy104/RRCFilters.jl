@@ -11,7 +11,10 @@ decoded = vitdec(encoded, trellis, 30; mode=:term)
 
 The current trellis API is rate-`1/n`, binary, non-recursive, and
 single-input-stream. Puncturing, erasures, recursive systematic codes, and
-continuous streaming mode are outside scope.
+continuous streaming mode are outside scope. Constraint length is capped at
+20 because the state count and trellis storage double with every increment;
+full-block Viterbi history can require substantially more memory than the
+trellis itself.
 
 Viterbi decision modes:
 

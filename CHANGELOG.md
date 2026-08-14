@@ -4,6 +4,13 @@ All notable changes to RRCFilters are documented here.
 
 ## Unreleased
 
+- Hardened cross-QAM nearest-point decisions and PSK LLR signs at extreme
+  finite magnitudes near overflow and underflow.
+- Replaced the example receiver's fragile wide-pull-in decision loop with
+  preamble-aided coarse and QPSK feedforward fine carrier recovery, backed by
+  signed-offset, timing-delay, and multi-seed low-SNR gates.
+- Reduced the maximum convolutional-code constraint length to 20 so public
+  trellis construction cannot silently request hundreds of megabytes.
 - Added max-log `qamsoftdemod` and `psksoftdemod` bit LLRs with finite-extreme
   hardening and bounded constellation-order work.
 - Added `decision_type=:llr` Viterbi decoding with block-global metric scaling.

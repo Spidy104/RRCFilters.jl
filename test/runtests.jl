@@ -533,6 +533,18 @@ const RC_REFERENCE = [
         @test isempty(qamdemod(ComplexF64[], 32))
         @test qamdemod(ComplexF64[complex(floatmax(Float64), floatmax(Float64))], 32; gray=false) ==
               BitVector([true, true, false, false, false])
+        for M in (8, 32, 128, 512), exponent in (54, 100, 500),
+            i_sign in (-1.0, 1.0), q_sign in (-1.0, 1.0)
+            parameters = RRCFilters._qam_parameters(M)
+            table = RRCFilters._qam_nonsquare_table(M, false)
+            magnitude = ldexp(0.75, exponent)
+            i_value = i_sign * magnitude
+            q_value = q_sign * 0.9375 * magnitude
+            reference = RRCFilters._qam_nonsquare_nearest_label_bigfloat(i_value, q_value, table)
+            symbol = parameters.scale * complex(i_value, q_value)
+            decoded = qamdemod(ComplexF64[symbol], M; gray=false)
+            @test RRCFilters._bits_to_integer(decoded, 1, trailing_zeros(M)) == reference
+        end
         zero_based_bits = ZeroBasedVector([false, false, true, true])
         @test qammod(zero_based_bits, 16) == qammod(zero_based_bits.data, 16)
         @test_throws ArgumentError qammod([0, 1, 0], 4)
@@ -753,6 +765,15 @@ const RC_REFERENCE = [
         @test BitVector(square_qam_llrs .< 0) == qamdemod(extreme_square_qam, 16; gray=false)
         @test BitVector(qam_llrs .< 0) == qamdemod(extreme_qam, 32; gray=false)
         @test BitVector(psk_llrs .< 0) == pskdemod(extreme_psk, 8; gray=false)
+
+        for M in (2, 4, 8, 16, 32), gray in (true, false),
+            exponent in (-40, -52, -60, -500, -1074)
+            symbol = ComplexF64(ldexp(0.75, exponent) * cis(0.37))
+            hard = pskdemod(ComplexF64[symbol], M; gray)
+            llrs = psksoftdemod(ComplexF64[symbol], M; gray)
+            @test all(index -> iszero(llrs[index]) || (llrs[index] < 0) == hard[index], eachindex(llrs))
+        end
+        @test all(iszero, psksoftdemod(ComplexF64[0.0 + 0.0im], 32))
 
         zero_based_symbols = ZeroBasedVector(ComplexF64[1 + im, -1 - im])
         @test qamsoftdemod(zero_based_symbols, 4) == qamsoftdemod(zero_based_symbols.data, 4)
@@ -1577,7 +1598,7 @@ const RC_REFERENCE = [
         @testset "input validation" begin
             @test_throws ArgumentError poly2trellis(true, [7, 5])
             @test_throws ArgumentError poly2trellis(1, [7, 5])
-            @test_throws ArgumentError poly2trellis(25, [7, 5])
+            @test_throws ArgumentError poly2trellis(21, [7, 5])
             @test_throws ArgumentError poly2trellis(3, Int[])
             @test_throws ArgumentError poly2trellis(3, Bool[true, false])
             @test_throws ArgumentError poly2trellis(3, [-1, 5])
@@ -2348,5 +2369,12 @@ const RC_REFERENCE = [
         @test result.hard_errors > 0
         @test result.soft_errors < result.hard_errors
         @test result.soft_ber <= 0.005
+
+        stress = softcoded_link_trial(10.0; message_length=2_000, seed=4123,
+                                      timing_delay=-1.0, frequency_offset=-0.004)
+        @test stress.synchronization_score > 0.7
+        @test stress.soft_errors == 0
+        @test isapprox(stress.coarse_frequency + stress.fine_frequency,
+                       2pi * 4 * -0.004; atol=5e-4)
     end
 end

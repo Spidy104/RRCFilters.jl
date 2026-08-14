@@ -21,7 +21,8 @@ only values that cannot be represented by `Float64`.
 
 Square QAM separates into independent in-phase and quadrature searches, reducing
 each symbol from a full constellation scan to two axis scans. Cross-QAM and PSK
-retain the general partition search.
+retain the general partition search. PSK drops the common constant-energy term
+exactly, preventing constellation-rounding bias for samples near zero.
 
 ## Stateless vector model
 
@@ -39,7 +40,7 @@ in-place public APIs.
 - `symbolsync` returns a variable number of symbols.
 - `timingoffset` includes an intrinsic two-sample Farrow group delay.
 - Full-block Viterbi stores predecessor history proportional to state count
-  times symbol count.
+  times symbol count; trellis construction is capped at constraint length 20.
 - FEC does not include puncturing, erasures, continuous mode, or recursive
   systematic encoders.
 - Equalization is symbol-rate and lacks blind CMA.

@@ -29,7 +29,8 @@ julia --project=dev --startup-file=no dev/softcoded_link.jl
 ```
 
 It requires stable frame acquisition, monotonically nonincreasing seeded soft
-BER, and aggregate soft-decoding improvement across 4 through 9 dB.
+BER, aggregate soft-decoding improvement across 4 through 9 dB, and multi-seed
+5 dB recovery with positive and negative carrier offsets.
 
 ## Documentation
 

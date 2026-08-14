@@ -49,7 +49,7 @@ function psksoftdemod(symbols::AbstractVector{<:Complex}, M::Integer;
 
     labels = _soft_demod_label_bits(parameters.M, parameters.bits_per_symbol)
     constellation = pskmod(labels, parameters.M; gray, phase_offset)
-    return _maxlog_llrs(symbols, constellation, parameters.bits_per_symbol, variance)
+    return _maxlog_llrs(symbols, constellation, parameters.bits_per_symbol, variance, true)
 end
 
 function _soft_demod_variance(noise_variance::Real)
@@ -172,14 +172,14 @@ function _qam_square_symbol_llrs_big!(llrs, start::Int, symbol, parameters,
 end
 
 function _maxlog_llrs(symbols, constellation::Vector{ComplexF64}, bits_per_symbol::Int,
-                       noise_variance::Float64)
+                       noise_variance::Float64, constant_energy::Bool=false)
     llrs = Vector{Float64}(undef, length(symbols) * bits_per_symbol)
     minimum_zero = Vector{Float64}(undef, bits_per_symbol)
     minimum_one = Vector{Float64}(undef, bits_per_symbol)
     for (symbol_index, symbol) in enumerate(symbols)
         start = (symbol_index - 1) * bits_per_symbol + 1
         _maxlog_symbol_llrs!(llrs, start, symbol, constellation, bits_per_symbol,
-                             noise_variance, minimum_zero, minimum_one)
+                             noise_variance, minimum_zero, minimum_one, constant_energy)
     end
     return llrs
 end
@@ -187,22 +187,23 @@ end
 function _maxlog_symbol_llrs!(llrs::Vector{Float64}, start::Int, symbol,
                                constellation::Vector{ComplexF64}, bits_per_symbol::Int,
                                noise_variance::Float64, minimum_zero::Vector{Float64},
-                               minimum_one::Vector{Float64})
+                               minimum_one::Vector{Float64}, constant_energy::Bool=false)
     real_value = Float64(real(symbol))
     imag_value = Float64(imag(symbol))
     if !isfinite(real_value) || !isfinite(imag_value) ||
        max(abs(real_value), abs(imag_value)) > sqrt(floatmax(Float64))
         return _maxlog_symbol_llrs_big!(llrs, start, symbol, constellation, bits_per_symbol,
-                                        noise_variance)
+                                        noise_variance, constant_energy)
     end
 
     fill!(minimum_zero, Inf)
     fill!(minimum_one, Inf)
     for (index, point) in enumerate(constellation)
-        score = abs2(point) - 2 * (real_value * real(point) + imag_value * imag(point))
+        score = (constant_energy ? 0.0 : abs2(point)) -
+                2 * (real_value * real(point) + imag_value * imag(point))
         isfinite(score) ||
             return _maxlog_symbol_llrs_big!(llrs, start, symbol, constellation, bits_per_symbol,
-                                            noise_variance)
+                                            noise_variance, constant_energy)
         label = index - 1
         for bit_index in 1:bits_per_symbol
             bit = (label >> (bits_per_symbol - bit_index)) & 1
@@ -218,7 +219,7 @@ function _maxlog_symbol_llrs!(llrs::Vector{Float64}, start::Int, symbol,
         llr = (minimum_one[bit_index] - minimum_zero[bit_index]) / noise_variance
         isfinite(llr) ||
             return _maxlog_symbol_llrs_big!(llrs, start, symbol, constellation, bits_per_symbol,
-                                            noise_variance)
+                                            noise_variance, constant_energy)
         llrs[start + bit_index - 1] = llr
     end
     return llrs
@@ -226,7 +227,7 @@ end
 
 function _maxlog_symbol_llrs_big!(llrs::Vector{Float64}, start::Int, symbol,
                                    constellation::Vector{ComplexF64}, bits_per_symbol::Int,
-                                   noise_variance::Float64)
+                                   noise_variance::Float64, constant_energy::Bool=false)
     input_precision = real(symbol) isa BigFloat ? precision(real(symbol)) : 0
     return setprecision(BigFloat, max(2048, input_precision + 64)) do
         real_value = BigFloat(real(symbol))
@@ -237,7 +238,7 @@ function _maxlog_symbol_llrs_big!(llrs::Vector{Float64}, start::Int, symbol,
         for (index, point) in enumerate(constellation)
             point_real = BigFloat(real(point))
             point_imag = BigFloat(imag(point))
-            score = point_real^2 + point_imag^2 -
+            score = (constant_energy ? 0 : point_real^2 + point_imag^2) -
                     2 * (real_value * point_real + imag_value * point_imag)
             label = index - 1
             for bit_index in 1:bits_per_symbol

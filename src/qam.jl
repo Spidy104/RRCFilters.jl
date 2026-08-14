@@ -196,12 +196,12 @@ end
 
 function _qam_nonsquare_nearest_label(i_value::Real, q_value::Real, table::Vector{Tuple{Int,Int}})
     best_label = 0
-    best_distance = Inf
+    best_score = Inf
     for (index, (i_level, q_level)) in enumerate(table)
-        distance = abs2(i_value - i_level) + abs2(q_value - q_level)
-        isfinite(distance) || return _qam_nonsquare_nearest_label_bigfloat(i_value, q_value, table)
-        if distance < best_distance
-            best_distance = distance
+        score = i_level^2 + q_level^2 - 2 * (i_value * i_level + q_value * q_level)
+        isfinite(score) || return _qam_nonsquare_nearest_label_bigfloat(i_value, q_value, table)
+        if score < best_score
+            best_score = score
             best_label = index - 1
         end
     end

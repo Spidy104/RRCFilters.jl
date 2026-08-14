@@ -17,6 +17,11 @@ a preamble, pilots, or differential encoding to resolve absolute phase.
 Assess lock from both the phase-estimate tail slope and post-acquisition data
 quality. A loop that merely improves BER is not necessarily healthy.
 
+For a framed offline receiver, feedforward recovery can be more robust than a
+decision-directed loop at low SNR. The `dev/softcoded_link.jl` example uses a
+known acquisition word for a coarse estimate, a fourth-power QPSK estimate for
+the residual, and the sync word to resolve constant phase and gain.
+
 ## Symbol timing recovery
 
 `timingoffset` produces a controlled fractional delay. `symbolsync` accepts an

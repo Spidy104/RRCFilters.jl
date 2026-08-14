@@ -24,9 +24,11 @@ send it to `symbolsync` instead of immediately decimating it.
 
 The executable `dev/softcoded_link.jl` example goes further: it pulse-shapes a
 terminated rate-1/2 QPSK frame, adds timing, carrier, phase, and AWGN
-impairments, performs timing and carrier recovery, acquires a known sync word,
-resolves residual complex gain, produces max-log LLRs, and Viterbi decodes the
-payload. Its seeded sweep prints CSV-formatted hard and soft BER data.
+impairments, performs Gardner timing recovery, uses a known acquisition word
+for coarse carrier frequency and QPSK symmetry for fine frequency recovery,
+acquires a sync word, resolves residual complex gain, produces max-log LLRs,
+and Viterbi decodes the payload. Its seeded sweep prints CSV-formatted hard and
+soft BER data.
 
 ## Avoiding misleading results
 
